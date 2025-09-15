@@ -1,3 +1,7 @@
+// Copyright Liu FRANÇOIS 
+// 15/09/25
+// Under licence (LICENCE.md)
+
 #include "Foundation/Foundation.hpp"
 #include "Metal/Metal.hpp"
 
