@@ -1,3 +1,11 @@
+// Copyright Liu FRANÇOIS 
+// 15/09/25
+// Under licence (LICENCE.md)
+
+// This file contains code adapted from:
+// https://github.com/larsgeb/m1-gpu-cpp
+// Original work by Lars Geb.
+
 #include "GPU.hpp"
 
 #include <iostream>

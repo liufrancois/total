@@ -1,10 +1,10 @@
-Ce projet réalise la réduction d’un cube 4D en sommant les valeurs le long d’une dimension donnée en utilisant le GPU d'un mac mini m2.
+Ce projet réalise la réduction d’un cube 4D en sommant les valeurs le long d’une dimension donnée en utilisant le GPU d'un mac mini M2.
 Il constitue une partie d’un futur algorithme de traitement des rampes d’intégration, qui nécessitera ce type de réduction.  
 
 Installation :
 
 - installer metal-cpp (https://developer.apple.com/metal/cpp/)
-- git clone ...
+- git clone https://github.com/liufrancois/total
 (avoir les 2 dans le même répertoire)
 
 Utilisation :
@@ -25,3 +25,11 @@ Environnement de test :
 Machine : Mac mini M2
 Système : macOS Sequoia 15.6.1
 Données : cube de taille [1032, 1024, 15, 37]
+
+Autheur :
+
+Nom : Liu FRANÇOIS
+Date : 15 septembre 2025
+
+Licence : 
+Ce projet est sous licence BSD.

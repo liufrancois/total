@@ -1,3 +1,7 @@
+// Copyright Liu FRANÇOIS 
+// 15/09/25
+// Under licence (LICENCE.md)
+
 #include <metal_stdlib>
 using namespace metal;
 

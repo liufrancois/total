@@ -3,29 +3,14 @@
 // Under licence (LICENCE.md)
 
 
-#define NS_PRIVATE_IMPLEMENTATION
-#define CA_PRIVATE_IMPLEMENTATION
-#define MTL_PRIVATE_IMPLEMENTATION
-#include "Foundation/Foundation.hpp"
-#include "Metal/Metal.hpp"
-
-typedef std::chrono::microseconds time_unit;
-auto unit_name = "microseconds";
-
-#include "GPU.hpp"
-
 #include <iostream>
 #include <vector>
 #include <chrono>
 #include "fitsio.h"
+#include <omp.h>
 
-
-using namespace std;
-
-
-int index(long naxes[4], int x, int y, int z, int w){
-    return (w*(naxes[2]*naxes[1]*naxes[0]) + z*(naxes[1]*naxes[0]) + y*naxes[0] + x);
-}
+typedef std::chrono::microseconds time_unit;
+auto unit_name = "microseconds";
 
 int main(int argc, char* argv[]) {
     if (argc == 1){
@@ -45,30 +30,26 @@ int main(int argc, char* argv[]) {
             return 0;
         }
     }
+
     auto start = std::chrono::high_resolution_clock::now();
     std::string fits_path = argv[1];
     int nb = std::stoi(argv[2]);
     std::string new_fits_path = argv[3];
     new_fits_path = "!"+new_fits_path;
-
-
-    MTL::Device *device = MTL::CreateSystemDefaultDevice();
-
-    std::cout << "Running on " << device->name()->utf8String() << std::endl;
+    
     std::cout << "Dim on " << nb << std::endl;
-
 
     int hdutype;
     int naxis;
-    long naxes[4] = {1,1,1,1};
-    long fpixel[4] = {1,1,1,1};
+    long naxes[4] ={1,1,1,1};
+    long fpixel[4] ={1,1,1,1};
     long nelements = 1;
     int bitpix;
     int status = 0;
 
     long new_nelements = 1;
-    long new_naxes[3] = {0,0,0};
-    long new_fpixel[3] = {1,1,1};
+    long new_naxes[3] ={1,1,1};
+    long new_fpixel[3] ={1,1,1};
 
     fitsfile* fptr;
 
@@ -77,7 +58,7 @@ int main(int argc, char* argv[]) {
         fits_report_error(stderr, status);
         return status;
     }
-    
+
     fits_movabs_hdu(fptr, 2, &hdutype, &status);
     fits_get_img_param(fptr, 4, &bitpix, &naxis, naxes, &status);
 
@@ -98,43 +79,61 @@ int main(int argc, char* argv[]) {
     std::cout << "]" << std::endl;
     std::cout << "Nombre total de voxels = " << nelements << std::endl;
 
-    float bzero = 0;
-    fits_read_key(fptr, TFLOAT, "BZERO", &bzero, NULL, &status);
+    std::vector<float> cube(nelements);
+    std::vector<float> cube3D(new_nelements, 0.0f);
 
-    MTL::Buffer *naxesIn = device->newBuffer(4 * sizeof(long), MTL::ResourceStorageModeManaged);
-    MTL::Buffer *cubeIn = device->newBuffer(nelements * sizeof(float), MTL::ResourceStorageModeManaged);
-    MTL::Buffer *result = device->newBuffer(new_nelements * sizeof(float), MTL::ResourceStorageModeManaged);
-    MTL::Buffer *bzeroIn = device->newBuffer(sizeof(float), MTL::ResourceStorageModeManaged);
+    double bzero = 0;
+    fits_read_key(fptr, TDOUBLE, "BZERO", &bzero, NULL, &status);
 
 
     auto start2 = std::chrono::high_resolution_clock::now();
-    fits_read_pix(fptr, TFLOAT, fpixel, nelements, NULL, (float*)cubeIn->contents(), NULL, &status);
-    cubeIn->didModifyRange(NS::Range::Make(0, nelements * sizeof(float)));
+    fits_read_pix(fptr, TFLOAT, fpixel, nelements, NULL, cube.data(), NULL, &status);
 
     auto stop2 = std::chrono::high_resolution_clock::now();
     auto duration2 = std::chrono::duration_cast<time_unit>(stop2 - start2).count();
     std::cout << "temps fits_read : " << (float)duration2/1000000 << std::endl;
 
-    float *bzero_CPU = (float*) bzeroIn->contents();
 
-    memcpy((uint8_t*)naxesIn->contents(), naxes, sizeof(long) * 4);
-    bzero_CPU[0] = bzero;
-
-
-    //start = std::chrono::high_resolution_clock::now();
-    MetalOperations *arrayOps = new MetalOperations(device);
     if (nb == 1){
-        arrayOps->total1(naxesIn, cubeIn, result, bzeroIn, new_nelements);
+        #pragma omp parallel for
+        for (int index = 0; index < nelements; index++){
+            int voxelIndex = ((index / naxes[0]) % naxes[1]) + naxes[1] * (((index / (naxes[0]*naxes[1])) % naxes[2]) + naxes[2] * ((index / (naxes[0]*naxes[1]*naxes[2])) % naxes[3]));
+
+            #pragma omp atomic
+            cube3D[voxelIndex] += (cube[index] - bzero);
+        }
     }
+
     else if (nb == 2){
-        arrayOps->total2(naxesIn, cubeIn, result, bzeroIn, new_nelements);
+        #pragma omp parallel for
+        for (int index = 0; index < new_nelements; index++){
+            for (int i1 = 0; i1 < naxes[1]; i1++){
+                int offset = (index % naxes[0]) + naxes[0] * (i1 + naxes[1] * ((index / naxes[0]) % naxes[2] + naxes[2] * (index / (naxes[0] * naxes[2]))));
+                cube3D[index] += (cube[offset] - bzero);
+            }
+        }
     }
+
     else if (nb == 3){
-        arrayOps->total3(naxesIn, cubeIn, result, bzeroIn, new_nelements);
+        #pragma omp parallel for
+        for (int index = 0; index < new_nelements; index++){
+            for (int i2 = 0; i2 < naxes[2]; i2++){
+                int offset = (index % naxes[0]) + naxes[0] * ((index / naxes[0]) % naxes[1] + naxes[1] * (i2 + naxes[2] * (index / (naxes[0] * naxes[1]))));
+                cube3D[index] += static_cast<float>(cube[offset] - bzero);
+            }
+        }
     }
+
     else if (nb == 4){
-        arrayOps->total4(naxesIn, cubeIn, result, bzeroIn, new_nelements);
+        #pragma omp parallel for
+        for (int index = 0; index < nelements; index++){
+            int voxelIndex = index % (naxes[0]*naxes[1]*naxes[2]);
+
+            #pragma omp atomic
+            cube3D[voxelIndex] += (cube[index] - bzero);
+        }
     }
+
     else{
         std::cout << "La dimension doit être entre 1 et 4." << std::endl;
         return 0;
@@ -142,29 +141,17 @@ int main(int argc, char* argv[]) {
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<time_unit>(stop - start).count();
-    
     std::cout << "temps main() : " << (float)duration/1000000 << std::endl;
 
-    float* resultPtr = (float*) result->contents();
-    float* cubePtr = (float*) cubeIn->contents();
-
     printf("\n\n");
-    printf("result Voxel (0,0,0) = %.1f\n", resultPtr[0]);
-    printf("result Voxel (1) = %.1f\n", resultPtr[1]);
-    printf("result Voxel (dernier) = %.1f\n", resultPtr[new_nelements-1]);
-    printf("result Voxel (avant dernier) = %.1f\n", resultPtr[new_nelements-2]);
-    printf("result Voxel (123456) = %.1f\n", resultPtr[123456]);
+    printf("result Voxel (0,0,0) = %.1f\n", cube3D[0]);
+    printf("result Voxel (1) = %.1f\n", cube3D[1]);
+    printf("result Voxel (dernier) = %.1f\n", cube3D[new_nelements-1]);
+    printf("result Voxel (avant dernier) = %.1f\n", cube3D[new_nelements-2]);
+    printf("result Voxel (123456) = %.1f\n", cube3D[123456]);
     printf("\n\n");
 
-    /*
-    // Vérifier les valeurs du cube d'entrée
-    std::cout << "cube   Voxel (0,0,0,0) = " << (cubePtr[0] - bzero) << std::endl;
-    std::cout << "cube   Voxel (nelements-1) = " << (cubePtr[nelements-1] - bzero) << std::endl;
-    std::cout << "cube   Voxel (1,1,1,1) = " << (cubePtr[index(naxes,1,1,1,1)] - bzero) << std::endl;
-    std::cout << "cube   Voxel (123456) = " << (cubePtr[123456] - bzero) << std::endl;
-    std::cout << "cube   Voxel (1031,1023,14,36) = " << (cubePtr[index(naxes, 1031,1023,14,36)] - bzero) << std::endl;
-    */
-
+    float* resultPtr = (float*)cube3D.data();
     fits_close_file(fptr, &status);
     status = 0;
     fptr = nullptr;
@@ -188,11 +175,6 @@ int main(int argc, char* argv[]) {
         fits_report_error(stderr, status);
         return status;
     }
-
-    cubeIn->release();
-    result->release();
-    naxesIn->release();
-    bzeroIn->release();
 
     return 0;
 }

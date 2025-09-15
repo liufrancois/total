@@ -14,6 +14,8 @@ AIR := ops.air
 METALLIB := ops.metallib
 
 TARGET := total
+TARGET_CPU := totalCPU
+SRC_CPU := totalCPU.cpp
 
 all: $(TARGET)
 
@@ -26,5 +28,8 @@ $(METALLIB): $(AIR)
 $(TARGET): $(SRC) $(METALLIB)
 	$(CXX) $(CXXFLAGS) $(SRC) $(LDFLAGS) -o $(TARGET)
 
+CPU: $(SRC_CPU)
+	$(CXX) -I$(shell brew --prefix cfitsio)/include -L$(shell brew --prefix cfitsio)/lib -lcfitsio -O3 -fopenmp $(SRC_CPU) -o $(TARGET_CPU)
+
 clean:
-	rm -f $(AIR) $(METALLIB) $(TARGET)
+	rm -f $(AIR) $(METALLIB) $(TARGET) $(TARGET_CPU)
