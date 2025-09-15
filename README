@@ -1,0 +1,27 @@
+Ce projet réalise la réduction d’un cube 4D en sommant les valeurs le long d’une dimension donnée en utilisant le GPU d'un mac mini m2.
+Il constitue une partie d’un futur algorithme de traitement des rampes d’intégration, qui nécessitera ce type de réduction.  
+
+Installation :
+
+- installer metal-cpp (https://developer.apple.com/metal/cpp/)
+- git clone ...
+(avoir les 2 dans le même répertoire)
+
+Utilisation :
+
+L’exécutable prend en argument :  
+1. Le chemin vers un fichier FITS en entrée.  
+2. Le numéro de la dimension à réduire (entre 1 et 4).
+3. Le chemin vers un fichier FITS en sortie.  
+
+Remarque : l’image à traiter doit se trouver dans le 2éme HDU (Header Data Unit) du fichier FITS.
+
+Exemple :
+make
+./total fichier.fits 4 new_fichier.fits
+
+Environnement de test :
+
+Machine : Mac mini M2
+Système : macOS Sequoia 15.6.1
+Données : cube de taille [1032, 1024, 15, 37]
