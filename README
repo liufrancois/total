@@ -18,7 +18,7 @@ Remarque : l’image à traiter doit se trouver dans le 2éme HDU (Header Data U
 
 Exemple :
 make
-./total fichier.fits 4 new_fichier.fits
+./Total fichier.fits 4 new_fichier.fits
 
 Environnement de test :
 
@@ -32,4 +32,4 @@ Nom : Liu FRANÇOIS
 Date : 15 septembre 2025
 
 Licence : 
-Ce projet est sous licence BSD.
+Ce projet est sous licence MIT.
